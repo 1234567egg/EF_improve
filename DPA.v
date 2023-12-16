@@ -11,12 +11,6 @@
 // - conbine all module in to DPA
 ////////////////////////////////////////////////////////////////////////////////
  
-`include "Control_v3.v"
-`include "IM_A.v"
-`include "Clock.v"
-`include "scaling.v"
-`include "fdiv.v"
-
 module DPA (clk,reset,IM_A, IM_Q,IM_D,IM_WEN,CR_A,CR_Q);
 input clk;
 input reset;
