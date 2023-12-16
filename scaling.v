@@ -66,29 +66,27 @@ module scaling
                 scaling_ns = INIT;
             end
             INIT : begin 
-                scaling_ns = (enable) ? RECEIVE_A : INIT;
+                scaling_ns = RECEIVE_A ;
             end
 
             RECEIVE_A: begin 
-                scaling_ns = (enable) ? RECEIVE_B : INIT;
+                scaling_ns = RECEIVE_B ;
             end
 
             RECEIVE_B: begin 
-                scaling_ns = (enable) ? RECEIVE_C : INIT;
+                scaling_ns = RECEIVE_C ;
             end
 
             RECEIVE_C : begin 
-                scaling_ns = (enable) ? RECEIVE_D :INIT ; 
+                scaling_ns = RECEIVE_D ; 
             end
 
             RECEIVE_D :begin 
-                scaling_ns = (enable) ? 
-                             (process_mode == COMPRESS)?  WB2 : WB1 
-                             :INIT;
+                scaling_ns = (process_mode == COMPRESS)?  WB2 : WB1 ;
             end
 
             WB1 :begin  
-                scaling_ns = (enable) ? WB2 : INIT; 
+                scaling_ns =  WB2 ; 
             end
 
             WB2 : begin 
