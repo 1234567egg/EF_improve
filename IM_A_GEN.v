@@ -7,8 +7,9 @@
 	select first and add.
 	first char first row is OK.
 	2023.12.15
-	read, write 128x128, 256x256, 512x512 and clock.
-
+	read, write 128x128, 256x256, 512x512 and clock.(no change picture)
+	2023.12.16
+	read, write 128x128, 256x256, 512x512 and clock, change picture.
 
  
 */																											  
@@ -33,7 +34,7 @@
 `define		IM_CLK_DONE		10  //pic and clock write done.
 `define		IM_R_PIC		11	//read next pic addr, size.	
 `define		IM_MODE_CHECK	12
-
+`define		IM_CHECK_PHOTO	13
 
 
 module IM_A_GEN(
@@ -43,13 +44,16 @@ module IM_A_GEN(
 	i_200mSEC,
 	i_2SEC,
 	i_pic_mode,
+	i_pic_num,
 	i_pic_init_addr,
 	i_FB_init_addr,
+	o_pic_done,
 	o_IM_WEN,
-	o_IM_A,
 	o_pic_done_2sec,		//DRAW Done before 0.2s
 	o_pic_done_200msec,		//DRAW Done after 0.2s
+	o_IM_A,
 	clk_write_done
+	
 	//o_test_out
 );
 
@@ -59,11 +63,12 @@ module IM_A_GEN(
 	input i_200mSEC;
 	input i_2SEC;
 	input [2:0] i_pic_mode;
+	input [2:0] i_pic_num;
 	input [`IM_A_LENGTH-1:0] i_pic_init_addr;
 	input [`IM_A_LENGTH-1:0] i_FB_init_addr;
+	output o_pic_done;
 	output o_IM_WEN;
 	output reg [`IM_A_LENGTH-1:0] o_IM_A;
-	
 	output o_pic_done_2sec;
 	output o_pic_done_200msec;
 	output clk_write_done;
@@ -80,6 +85,13 @@ module IM_A_GEN(
 	
 	reg [`STATE_COUNT_BIT-1:0] count;
 	reg [`STATE_COUNT_BIT-1:0] count_nxt;
+	
+	reg [3:0] IM_A_Header;
+	wire [3:0] IM_A_Header_nxt;
+	
+	wire [3:0] photo_num_target;
+	assign photo_num_target = {i_pic_num[2:0], 1'b0} + 4'd2;
+	
 	
 	reg pic_write_done;
 	//assign pic_write_done=1'b0;		//test or FMS will nuknown. 2023.12.14
@@ -104,6 +116,8 @@ module IM_A_GEN(
 	reg [`IM_A_2D_SIZE-1:0] read_column_nxt;
 	wire 	  				read_change_row_128;		//read pic edge. for 128 lock edge or 256 and 512 change row.
 	wire 					read_change_row_256;
+	wire 					read_buttom_128;
+	
 	
 	wire [4:0] read_addr_sel; 		//control read_row, read_column mode.
 	
@@ -159,7 +173,8 @@ module IM_A_GEN(
 		endcase
 	end
 	//--------------------------------------------- size mode -------------------------------------------------------
-	
+	assign o_pic_done_2sec = pic_write_done & flag_2sec;
+	assign o_pic_done_200msec = pic_write_done & flag_200msec;
 	//--------------------------------------------- time mode -------------------------------------------------------
 	always @(posedge clk or posedge reset)begin
 		if(reset)begin
@@ -205,8 +220,12 @@ module IM_A_GEN(
 		case(IM_cs)
 			`IM_1SEC	   : IM_ns = `IM_PIC_DONE;
 						   
-			`IM_2SEC	   : IM_ns = `IM_MODE_CHECK;
+			//`IM_2SEC	   : IM_ns = `IM_MODE_CHECK;
 						   
+			//`IM_200mSEC	   : IM_ns = `IM_MODE_CHECK;
+			
+			`IM_2SEC	   : IM_ns = `IM_CHECK_PHOTO;
+			
 			`IM_200mSEC	   : IM_ns = `IM_MODE_CHECK;
 						   
 			`IM_HEADER	   : IM_ns = (count==`STATE_COUNT_BIT'd4) ? `IM_MODE_CHECK : `IM_HEADER;
@@ -220,7 +239,7 @@ module IM_A_GEN(
 			`IM_W_PIXEL	   : IM_ns = (pic_write_done) ? `IM_PIC_DONE:
 						   		     (count==`STATE_COUNT_BIT'd2) ? `IM_R_PIXEL : `IM_W_PIXEL;
 						   
-			`IM_PIC_DONE   : IM_ns = (count==`STATE_COUNT_BIT'd2) ? `IM_W_CLK : `IM_PIC_DONE ;		//test 2023.12.14
+			`IM_PIC_DONE   : IM_ns = (count==`STATE_COUNT_BIT'd1) ? `IM_W_CLK : `IM_PIC_DONE ;		//test 2023.12.14
 						   
 			`IM_R_CLK	   : IM_ns = `IM_W_CLK;
 						   
@@ -228,11 +247,13 @@ module IM_A_GEN(
 									 (count==`STATE_COUNT_BIT'd13) ? `IM_R_CLK  : `IM_W_CLK;
 						   
 			`IM_CLK_DONE   : IM_ns = (i_1SEC) 	 ? `IM_1SEC    :
-									 (i_200mSEC)? `IM_200mSEC :
-									 (i_2SEC)   ? `IM_2SEC    :
+									 (i_200mSEC) ? `IM_200mSEC :
+									 (i_2SEC)    ? `IM_2SEC    :
 									 `IM_CLK_DONE;
-						   
-			`IM_R_PIC	   : IM_ns = (count==`STATE_COUNT_BIT'd1) ? `IM_START : `IM_R_PIC;
+									 
+			`IM_CHECK_PHOTO: IM_ns = `IM_R_PIC;
+			
+			`IM_R_PIC	   : IM_ns = (count==`STATE_COUNT_BIT'd1) ? `IM_MODE_CHECK : `IM_R_PIC;
 						   
 			default		   : IM_ns = `IM_2SEC;
 		endcase
@@ -255,14 +276,16 @@ module IM_A_GEN(
 			`IM_W_PIXEL	: count_nxt = (pic_write_done) ? `STATE_COUNT_BIT'd0:
 								      (count==`STATE_COUNT_BIT'd2) ? `STATE_COUNT_BIT'd1 : count + `STATE_COUNT_BIT'd1;
 			
-			`IM_PIC_DONE: count_nxt = (count==`STATE_COUNT_BIT'd2) ? `STATE_COUNT_BIT'd1 : count + `STATE_COUNT_BIT'd1;
+			`IM_PIC_DONE: count_nxt = (count==`STATE_COUNT_BIT'd1) ? `STATE_COUNT_BIT'd1 : count + `STATE_COUNT_BIT'd1;
 			
 			`IM_R_CLK	: count_nxt = `STATE_COUNT_BIT'd1;
 			
 			`IM_W_CLK	: count_nxt = (clk_write_done) ? `STATE_COUNT_BIT'd1 :
 								      (count==`STATE_COUNT_BIT'd13) ? `STATE_COUNT_BIT'd1  : count + `STATE_COUNT_BIT'd1;
 			
-			`IM_CLK_DONE: count_nxt = `STATE_COUNT_BIT'd1;
+			`IM_CLK_DONE: count_nxt = `STATE_COUNT_BIT'd0;
+			
+			`IM_CHECK_PHOTO : count_nxt = `STATE_COUNT_BIT'd1;
 			
 			`IM_R_PIC	: count_nxt = (count==`STATE_COUNT_BIT'd1) ? `STATE_COUNT_BIT'd1 :  count + `STATE_COUNT_BIT'd1;
 			
@@ -361,6 +384,9 @@ module IM_A_GEN(
 	
 	//--------------------------------------------- IM_A read row, column format --------------------------------------
 	//select first and add.
+	
+	assign read_buttom_128    = (i_pic_mode[0] && read_row==`IM_A_2D_SIZE'd127); 
+	
 	assign read_row_format    = {read_row[8:7]    & size_mask, read_row[6:0]}    + {8'd0, count[1]};
 	assign read_column_format = {read_column[8:7] & size_mask, read_column[6:0]} + {8'd0, count[0]};
 	
@@ -376,7 +402,7 @@ module IM_A_GEN(
 		case(read_format_sel)
 			5'b00_0_0_0 : IM_A_read_format = {4'd0, read_row_format, read_column_format[6:0]};
 			
-			5'b00_1_0_0 : IM_A_read_format = {4'd0, read_row_format, read_column_format[6:0]};	//4, 9, 7
+			5'b00_1_0_0 : IM_A_read_format = (read_buttom_128) ? {4'd0, read_row_format_first_addr, read_column_format_first_addr[6:0] + {5'd0, count[0]}} : {4'd0, read_row_format, read_column_format[6:0]};	//4, 9, 7
 			
 			5'b00_0_1_0 : IM_A_read_format = {4'd0, read_row_format_first_addr, read_column_format_first_addr[6:0]};
 			
@@ -449,7 +475,9 @@ module IM_A_GEN(
 											  end
 									4'b1110 : begin
 												write_row_nxt    = write_row + ((&size_mask) ? `IM_A_2D_SIZE'd1 : `IM_A_2D_SIZE'd2);
-												write_column_nxt = (&size_mask && flag_200msec) ? `IM_A_2D_SIZE'd1 : `IM_A_2D_SIZE'd0;
+												write_column_nxt = ((&size_mask) && write_change_row_256) ?  `IM_A_2D_SIZE'd1 :
+																   ((&size_mask) && flag_200msec) ? `IM_A_2D_SIZE'd1 : 
+																   `IM_A_2D_SIZE'd0;
 											  end
 									4'b1101 : begin
 												write_row_nxt    = write_row + `IM_A_2D_SIZE'd1;
@@ -500,10 +528,7 @@ module IM_A_GEN(
 	//pic write done condition.			
 	assign pic_done_condition = {size_mask, (IM_cs==`IM_W_PIXEL), (count==`STATE_COUNT_BIT'd2)};
 	//clk write done condition.
-	assign clk_write_done = {(IM_cs==`IM_W_CLK) && (write_row==`IM_A_2D_SIZE'd255) && (write_column==`IM_A_2D_SIZE'd243)};
-
-	assign o_pic_done_2sec = pic_write_done & flag_2sec;
-	assign o_pic_done_200msec = pic_write_done & flag_200msec;
+	assign clk_write_done = {(IM_cs==`IM_W_CLK) && (write_row==`IM_A_2D_SIZE'd255) && (write_column==`IM_A_2D_SIZE'd243) && (count==`STATE_COUNT_BIT'd13)};
 				
 	always @(*)begin
 		case(pic_done_condition)
@@ -533,13 +558,15 @@ module IM_A_GEN(
 	assign write_row_format = write_row_format_base + write_row_format_offset;
 	
 	
-	assign write_column_format_offset_sel = {(&size_mask==1'b1 || IM_cs==`IM_R_CLK || IM_cs==`IM_W_PIXEL || IM_cs==`IM_PIC_DONE), (IM_cs==`IM_R_PIXEL && count==`STATE_COUNT_BIT'd4), IM_cs==`IM_W_CLK};
+	assign write_column_format_offset_sel = {(&size_mask==1'b1 || IM_cs==`IM_R_CLK || IM_cs==`IM_W_PIXEL), ((IM_cs==`IM_R_PIXEL && count==`STATE_COUNT_BIT'd4) || (IM_cs==`IM_PIC_DONE)), IM_cs==`IM_W_CLK};
 	
 	always @(*)begin
 		case(write_column_format_offset_sel)
-			3'b1_0_0 : write_column_format_offset = (flag_200msec && !(&size_mask)) ? {8'd0, flag_200msec} : `IM_A_2D_SIZE'd0;
+			3'b1_0_0 : write_column_format_offset = (flag_200msec && !(&size_mask) && (IM_cs != `IM_PIC_DONE)) ? 
+													(IM_cs==`IM_R_CLK) ? `IM_A_2D_SIZE'd0 : {8'd0, flag_200msec} : 
+													`IM_A_2D_SIZE'd0;
 			3'b1_1_0 : write_column_format_offset = `IM_A_2D_SIZE'd0;
-			3'b0_1_0 : write_column_format_offset = {8'd0, flag_2sec};
+			3'b0_1_0 : write_column_format_offset = (IM_cs==`IM_PIC_DONE) ? 9'd0 : {8'd0, flag_2sec};
 			3'b1_0_1 : write_column_format_offset = {4'd0, count};
 			3'b0_0_1 : write_column_format_offset = {4'd0, count};
 			default  : write_column_format_offset = `IM_A_2D_SIZE'dx;
@@ -559,9 +586,11 @@ module IM_A_GEN(
 	always @(posedge clk or posedge reset)begin
 		if(reset)begin
 			o_IM_A <= `IM_A_LENGTH'd0;
+			IM_A_Header <= 4'd3;
 		end
 		else begin
-			o_IM_A <= o_IM_A_nxt; 
+			o_IM_A <= o_IM_A_nxt;
+			IM_A_Header <= IM_A_Header_nxt;
 		end
 	end
 	
@@ -604,11 +633,24 @@ module IM_A_GEN(
 							o_IM_A_nxt = i_FB_init_addr + IM_A_write_format;
 						  end
 			
+			`IM_CHECK_PHOTO : begin
+								o_IM_A_nxt = (IM_A_Header==photo_num_target) ? `IM_A_LENGTH'd3 : {16'd0, IM_A_Header};
+							  end
+			`IM_R_PIC : begin
+							o_IM_A_nxt = o_IM_A + `IM_A_LENGTH'd1;
+					    end 
+			
+			
 			default		: begin
 							o_IM_A_nxt = `IM_A_LENGTH'd0;
 						  end
 		endcase
 	end
+	
+	assign IM_A_Header_nxt = (IM_cs==`IM_CLK_DONE && ((IM_A_Header+4'd1)==photo_num_target) && (flag_200msec)) ? 4'd3:
+							 (IM_cs==`IM_CLK_DONE && (IM_A_Header!=photo_num_target) && (flag_200msec)) ? IM_A_Header + 4'd2 : 
+							 IM_A_Header;
+	
 	//--------------------------------------------- output IM_A  -----------------------------------------------------
 	
 endmodule 

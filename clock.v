@@ -24,7 +24,7 @@ parameter WAIT_STATE = 4'd2;
 parameter EMPTY_STATE = 4'd3;
 parameter READ_STATE = 4'd4;
 parameter WRT_STATE = 4'd5;
-
+parameter WAIT_STATE_1sec = 4'd6;
 
 //----------------------------------------------------------------
 
@@ -88,14 +88,16 @@ assign nx_Complete = (count_num == 6'd7 && count_data == 6'd24 && CR_Q_count == 
 
 //-----------------------------------Start----------------------------------------
 
-assign start = start_400ms | start_200ms | start_odd;
+assign start = start_400ms | start_200ms ;
 
 //-------------------------------FSM-----------------------------------------------
 
 always @(*)												
 	case(cs)				
 		RST_STATE : ns = (start)? EMPTY_STATE : cs;			//|Mode						 		
-		WAIT_STATE : ns = (start)? EMPTY_STATE : cs;		//|Mode
+		WAIT_STATE : ns = (start_odd)? WAIT_STATE_1sec : 
+						  (start) ? EMPTY_STATE : cs;		//|Mode
+		WAIT_STATE_1sec : ns = EMPTY_STATE;
 		EMPTY_STATE : ns = READ_STATE;
 		READ_STATE : ns = WRT_STATE;						
 		WRT_STATE : ns = (Complete == 1'd1)? WAIT_STATE : 	
@@ -188,7 +190,7 @@ always @(*)
 always @(*)
 	case(cs)
 		RST_STATE : nx_hours = Init_time[23:16];
-		WAIT_STATE : nx_hours = (start && (start_400ms == 1'b0))? ((seconds == 8'd59)? 
+		WAIT_STATE : nx_hours = ((start | start_odd) && (start_400ms == 1'b0))? ((seconds == 8'd59)? 
 								((minutes == 8'd59)? 
 								((hours == 8'd23)? 8'd0 
 								: hours + 8'd1) : 
@@ -200,7 +202,7 @@ always @(*)
 always @(*)
 	case(cs)
 		RST_STATE : nx_minutes = Init_time[15:8];
-		WAIT_STATE : nx_minutes = (start && (start_400ms == 1'b0))? ((seconds == 8'd59)? 
+		WAIT_STATE : nx_minutes = ((start | start_odd) && (start_400ms == 1'b0))? ((seconds == 8'd59)? 
 									((minutes == 8'd59)? 8'd0 : 
 									minutes + 8'd1) : 
 									minutes) : 
@@ -211,7 +213,7 @@ always @(*)
 always @(*)
 	case(cs)
 		RST_STATE : nx_seconds = Init_time[7:0];
-		WAIT_STATE : nx_seconds = (start && (start_400ms == 1'b0))? ((seconds == 8'd59)? 
+		WAIT_STATE : nx_seconds = ((start | start_odd) && (start_400ms == 1'b0))? ((seconds == 8'd59)? 
 									8'd0 : 
 									seconds + 8'd1) : 
 									seconds;

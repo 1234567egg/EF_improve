@@ -1,6 +1,18 @@
+////////////////////////////////////////////////////////////////////////////////
+// File: DPA.v
+// Author: 
+// Date: 2023-12-16 03:31
+// Version: 1.0
+// Description: Brief description of your Verilog module or design.
+//
+// Updates:
+// - 2023-12-16 03:31 -[name]
+// - Description of the update.
+////////////////////////////////////////////////////////////////////////////////
+ 
 `include "Control_v4.v"
 `include "IM_A_GEN.v"
-`include "Clock.v"
+`include "clock.v"
 `include "scaling.v"
 `include "fdiv.v"
 
@@ -28,7 +40,7 @@ wire [19:0]FB_addr,PIC_addr;
 
 wire [2:0]pic_size,photo_num;
 
-wire [23:0]IM_D_CR,IM_D_256,IM_D_Scaling;
+wire [23:0]IM_D_CR,IM_D_Scaling;
 
 //reg  [23:0]IM_D_Result;
 
@@ -85,6 +97,7 @@ IM_A_GEN IM_A_module(
 	.i_1SEC(clk_odd),
 	.i_200mSEC(clk_200ms),
 	.i_2SEC(clk_even),
+    .i_pic_num(photo_num),
 	.i_pic_mode(pic_size),
 	.i_pic_init_addr(PIC_addr),
 	.i_FB_init_addr(FB_addr),
@@ -95,10 +108,21 @@ IM_A_GEN IM_A_module(
     .clk_write_done(CR_Done)	
 );
 
+//  clk,
+// 	reset,
+// 	i_1SEC,
+// 	i_200mSEC,
+// 	i_2SEC,
+// 	i_pic_mode,
+// 	i_pic_num,
+// 	i_pic_init_addr,
+// 	i_FB_init_addr,
+// 	o_pic_done,
+// 	o_IM_WEN,
+// 	o_IM_A,
 
 
-
-assign IM_D_256=IM_Q;
+//assign IM_D_256=IM_Q;
 
 Clock Clock(
 	.clk(clk),

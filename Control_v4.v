@@ -48,7 +48,9 @@ localparam CR_DRAW = `CS_WIDTH'd6 ;
 localparam IDLE0 =`CS_WIDTH'd7 ;
 localparam IDLE1 =`CS_WIDTH'd10 ;
 localparam IDLE2 =`CS_WIDTH'd11 ;
-
+localparam IDLE3 =`CS_WIDTH'd12 ;
+localparam IDLE4 =`CS_WIDTH'd13 ;
+localparam IDLE5 =`CS_WIDTH'd14 ;
 
 reg [`CS_WIDTH-1:0]Control_CS,Control_NS;
 
@@ -102,11 +104,22 @@ always @(*) begin
         Control_NS=(CR_Done)?IDLE0:Control_CS;
     end
     IDLE0:begin
-        Control_NS=(clk_200ms)?IDLE2:
-                   (clk_even)?READ_PIC_ADDR:Control_CS; 
+        Control_NS=(clk_200ms)? IDLE2:
+                   (clk_even) ? IDLE3:
+                   (clk_odd)  ? CR_DRAW:
+                   Control_CS; 
     end
     IDLE2:begin
         Control_NS=IDLE1;
+    end
+    IDLE3:begin
+        Control_NS=IDLE4;
+    end
+    IDLE4:begin
+        Control_NS=IDLE5;
+    end
+    IDLE5:begin
+        Control_NS=READ_PIC_ADDR;
     end
     default:begin
         Control_NS=INITIAL0;
@@ -135,20 +148,44 @@ always @(*) begin
     case(Control_CS)
     READ_INIT_TIME:begin
         INIT_time_NS=IM_Q;
+        FB_addr_NS=FB_addr;
+        PIC_num_NS=PIC_num;
+        PIC_addr_NS=PIC_addr;
+        PIC_size_NS=PIC_size;
     end
     READ_FB_ADDR:begin
+        INIT_time_NS=INIT_time;
         FB_addr_NS=IM_Q[19:0];
+        PIC_num_NS=PIC_num;
+        PIC_addr_NS=PIC_addr;
+        PIC_size_NS=PIC_size;
     end
     READ_PHOTO_NUM:begin
+        INIT_time_NS=INIT_time;
+        FB_addr_NS=FB_addr;
         PIC_num_NS=IM_Q[2:0];
+        PIC_addr_NS=PIC_addr;
+        PIC_size_NS=PIC_size;
     end
     READ_PIC_ADDR:begin
+        INIT_time_NS=INIT_time;
+        FB_addr_NS=FB_addr;
+        PIC_num_NS=PIC_num;
         PIC_addr_NS=IM_Q[19:0];
+        PIC_size_NS=PIC_size;
     end
     READ_PIC_SIZE:begin
+        INIT_time_NS=INIT_time;
+        FB_addr_NS=FB_addr;
+        PIC_num_NS=PIC_num;
+        PIC_addr_NS=PIC_addr;
         PIC_size_NS=IM_Q[9:7];
     end
     IDLE0:begin
+        INIT_time_NS=INIT_time;
+        FB_addr_NS=FB_addr;
+        PIC_num_NS=PIC_num;
+        PIC_addr_NS=PIC_addr;
         PIC_size_NS=(clk_19)?3'd0:PIC_size;
     end
     default:begin
