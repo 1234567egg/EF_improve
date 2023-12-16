@@ -10,7 +10,8 @@
 	read, write 128x128, 256x256, 512x512 and clock.(no change picture)
 	2023.12.16
 	read, write 128x128, 256x256, 512x512 and clock, change picture.
-
+	2023.12.16
+	Adder reduce.
  
 */																											  
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -77,7 +78,7 @@ module IM_A_GEN(
 	
 	
 	reg  [`IM_A_LENGTH-1:0] o_IM_A_nxt;
-	reg  [`IM_A_LENGTH-1:0] IM_A_read_format;		//mix the read_row_format, read_column_format.
+	wire [`IM_A_LENGTH-1:0] IM_A_read_format;		//mix the read_row_format, read_column_format.
 	wire [`IM_A_LENGTH-1:0] IM_A_write_format;
 	
 	reg [`STATE_COUNT_BIT-1:0] IM_cs;
@@ -85,6 +86,8 @@ module IM_A_GEN(
 	
 	reg [`STATE_COUNT_BIT-1:0] count;
 	reg [`STATE_COUNT_BIT-1:0] count_nxt;
+	
+	
 	
 	reg [3:0] IM_A_Header;
 	wire [3:0] IM_A_Header_nxt;
@@ -108,6 +111,12 @@ module IM_A_GEN(
 	wire flag_1sec_nxt;
 	wire flag_200msec_nxt;
 	wire flag_2sec_nxt;
+	
+	
+	wire [`IM_A_2D_SIZE-1:0]read_row_format_base;
+	wire [`IM_A_2D_SIZE-1:0]read_column_format_base;
+	reg  [`IM_A_2D_SIZE-1:0]read_row_format_offset;
+	reg  [`IM_A_2D_SIZE-1:0]read_column_format_offset;
 	
 	//read pic IM_A row, column base
 	reg [`IM_A_2D_SIZE-1:0] read_row;			
@@ -133,7 +142,7 @@ module IM_A_GEN(
 	
 	
 	
-	wire [4:0] read_format_sel;	
+	wire [1:0] read_format_sel;	
 	
 	//write FB IM_A row, column base
 	reg [`IM_A_2D_SIZE-1:0] write_row;
@@ -387,42 +396,39 @@ module IM_A_GEN(
 	
 	assign read_buttom_128    = (i_pic_mode[0] && read_row==`IM_A_2D_SIZE'd127); 
 	
-	assign read_row_format    = {read_row[8:7]    & size_mask, read_row[6:0]}    + {8'd0, count[1]};
-	assign read_column_format = {read_column[8:7] & size_mask, read_column[6:0]} + {8'd0, count[0]};
+	//============================================================
+	assign read_row_format_base    = {read_row[8:7] & size_mask, read_row[6:0]};
+	assign read_column_format_base = {read_column[8:7] & size_mask, read_column[6:0]};
 	
-	assign read_row_format_first_addr    = {read_row[8:7]    & size_mask, read_row[6:0]};
-	assign read_column_format_first_addr = {read_column[8:7] & size_mask, read_column[6:0]};
+	assign read_row_format = read_row_format_base + read_row_format_offset;
+	assign read_column_format = read_column_format_base + read_column_format_offset;
 	
-	assign read_row_format_edge_addr    = {read_row[8:7]    & size_mask, read_row[6:0]} + {8'd0, count[1]};
-	assign read_column_format_edge_addr = {read_column[8:7] & size_mask, read_column[6:0]};
+	assign IM_A_read_format = (i_pic_mode[0]) ? {4'd0, read_row_format, read_column_format[6:0]}:
+							  (i_pic_mode[1]) ? {3'd0, read_row_format, read_column_format[7:0]}:
+							  (i_pic_mode[2]) ? {2'd0, read_row_format, read_column_format[8:0]}:
+							  `IM_A_LENGTH'dx;
+	//============================================================
 	
-	assign read_format_sel = {size_mask, (IM_cs==`IM_R_PIXEL), (IM_cs==`IM_W_PIXEL), read_change_row_128};
+	assign read_format_sel = {(IM_cs==`IM_W_PIXEL), read_change_row_128};
 	
 	always @(*)begin
 		case(read_format_sel)
-			5'b00_0_0_0 : IM_A_read_format = {4'd0, read_row_format, read_column_format[6:0]};
-			
-			5'b00_1_0_0 : IM_A_read_format = (read_buttom_128) ? {4'd0, read_row_format_first_addr, read_column_format_first_addr[6:0] + {5'd0, count[0]}} : {4'd0, read_row_format, read_column_format[6:0]};	//4, 9, 7
-			
-			5'b00_0_1_0 : IM_A_read_format = {4'd0, read_row_format_first_addr, read_column_format_first_addr[6:0]};
-			
-			5'b00_0_1_1 : IM_A_read_format = {4'd0, read_row_format_first_addr, read_column_format_first_addr[6:0]};
-			
-			5'b00_1_0_1 : IM_A_read_format = {4'd0, read_row_format_edge_addr, read_column_format_edge_addr[6:0]};
-			
-			5'b01_0_0_0 : IM_A_read_format = {3'd0, read_row_format, read_column_format[7:0]};
-			
-			5'b01_1_0_0 : IM_A_read_format = {3'd0, read_row_format, read_column_format[7:0]};
-			
-			5'b01_0_1_0 : IM_A_read_format = {3'd0, read_row_format_first_addr, read_column_format_first_addr[7:0]};
-			
-			5'b11_1_0_0 : IM_A_read_format = {2'd0, read_row_format, read_column_format[8:0]}; 
-			
-			5'b11_0_0_0 : IM_A_read_format = {2'd0, read_row_format, read_column_format[8:0]};  
-			
-			5'b11_0_1_0 : IM_A_read_format = {2'd0, read_row_format_first_addr, read_column_format_first_addr[8:0]}; 
-			
-			default	    : IM_A_read_format = `IM_A_LENGTH'dx;
+			2'b00		:begin
+							read_row_format_offset    =  (read_buttom_128) ? 9'd0 : {8'd0, count[1]};
+							read_column_format_offset =  {8'd0, count[0]};
+						 end
+			2'b10, 2'b11:begin
+							read_row_format_offset    =  9'd0;
+							read_column_format_offset =  9'd0;
+						 end  
+			2'b01		:begin
+							read_row_format_offset    =  {8'd0, count[1]};
+							read_column_format_offset =  9'd0;
+						 end
+			default:begin
+						read_row_format_offset    =  9'dx;
+						read_column_format_offset =  9'dx;
+					end
 		endcase
 	end
 	//--------------------------------------------- IM_A read row, column format --------------------------------------
